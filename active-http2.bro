@@ -22,6 +22,10 @@ export {
 		body:      string                  &optional;
 		## All headers returned by the server.
 		headers:   table[string] of string &optional;
+		## stdout from curl.
+		stdout:	vector of string	&optional;
+		## stderr from curl.
+		stderr:	vector of string	&optional;
 	};
 
 	type Request: record {
@@ -47,20 +51,20 @@ export {
 	};
 
 	## Perform an HTTP request according to the
-	## :bro:type:`ActiveHTTP::Request` record.  This is an asynchronous
+	## :bro:type:`ActiveHTTP2::Request` record.  This is an asynchronous
 	## function and must be called within a "when" statement.
 	##
 	## req: A record instance representing all options for an HTTP request.
 	##
 	## Returns: A record with the full response message.
-	global request: function(req: ActiveHTTP2::Request,filename: string): ActiveHTTP2::Response;
+	global request: function(req: ActiveHTTP2::Request): ActiveHTTP2::Response;
 }
 
 function request2curl(r: Request, bodyfile: string, headersfile: string): string
 	{
 	local cmd = fmt("curl -s -g -o \"%s\" -D \"%s\" -X \"%s\"",
-			str_shell_escape(bodyfile),
-			str_shell_escape(headersfile),
+	                str_shell_escape(bodyfile),
+	                str_shell_escape(headersfile),
 	                str_shell_escape(r$method));
 
 	cmd = fmt("%s -m %.0f", cmd, r$max_time);
@@ -75,11 +79,9 @@ function request2curl(r: Request, bodyfile: string, headersfile: string): string
 	return cmd;
 	}
 
-function request(req: Request,uid: string): Response
+function request(req: Request): ActiveHTTP2::Response
 	{
-	print fmt("> ActiveHttp2::request(%s)",req$url);
-	local uniqid      = unique_id("");
-	local tmpfile     = "/tmp/bro-activehttp-" + uniqid;
+	local tmpfile     = "/tmp/bro-activehttp-" + unique_id("");
 	local bodyfile    = fmt("%s_body", tmpfile);
 	local headersfile = fmt("%s_headers", tmpfile);
 
@@ -89,14 +91,13 @@ function request(req: Request,uid: string): Response
 	local resp: Response;
 	resp$code = 0;
 	resp$msg = "";
-	resp$body = bodyfile;
+	resp$body = "";
 	resp$headers = table();
-	#return when ( local result = Exec2::run([$cmd=cmd, $stdin=stdin_data]) )
-	return when ( local result = Exec2::run([$cmd=cmd, $uid=fmt("%s-%s",uid,uniqid), $stdin=stdin_data, $read_files=set(headersfile), $analyse_files=set(bodyfile)]) )
+	#return when ( local result = Exec2::run([$cmd=cmd, $stdin=stdin_data, $read_files=set(headersfile), $analyse_files=set(bodyfile)]) )
+	return when ( local result = Exec2::run([$cmd=cmd, $stdin=stdin_data, $read_files=set(headersfile,bodyfile)]) )
 		{
-		print "--- result ---";
+		print "--- ActiveHTTP2::request() when ---";
 		print result;
-
 		# If there is no response line then nothing else will work either.
 		if ( ! (result?$files && headersfile in result$files) )
 			{
@@ -116,7 +117,7 @@ function request(req: Request,uid: string): Response
 
 				resp$code = to_count(response_line[2]);
 				resp$msg = response_line[3];
-				#resp$body = join_string_vec(result$files[bodyfile], "");
+				resp$body = join_string_vec(result$files[bodyfile], "");
 				}
 			else
 				{
@@ -127,7 +128,8 @@ function request(req: Request,uid: string): Response
 				resp$headers[h[1]] = sub_bytes(h[2], 0, |h[2]|-1);
 				}
 			}
-			print "  ActiveHttp2::request() about to return resp";
+		if ( result?$stdout ) resp$stdout = result$stdout;
+		if ( result?$stderr ) resp$stderr = result$stderr;
 		return resp;
 		}
 	}

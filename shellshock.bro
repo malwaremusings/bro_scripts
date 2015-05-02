@@ -26,8 +26,8 @@ redef enum HTTP::Tags += {
 	ATTACK
 };
 
-global shellshock_downloads: table[string] of set[string];
-
+global shellshock_connections: table[string] of string;
+global shellshock_files: table[string] of string;
 
 #function md5_file(filename: string): string {
 #	local cmd = cat("md5summy -b \"",str_shell_escape(filename),"\"");
@@ -73,14 +73,30 @@ event http_header(c:connection,is_orig:bool,name:string,value:string) &priority=
 			local req:ActiveHTTP2::Request;
 			req$url = url;
 			req$method = "GET";
-			#req$addl_curl_args = "-w \"%{filename_effective} %{local_ip} %{local_port} %{remote_ip} %{remote_port} %{url_effective} %{http_code} %{content_type}\"";
+			req$addl_curl_args = "-w \"%{filename_effective}|%{local_ip}|%{local_port}|%{remote_ip}|%{remote_port}|%{url_effective}|%{http_code}|%{content_type}\"";
 
 			#local rsp:ActiveHTTP2::Response;
 			#local dlfilename = cat("shellshock_downloads/",c$uid);
-			print "before when";
-			when (local rsp = ActiveHTTP2::request(req,c$uid)) {
+			#when (local rsp = ActiveHTTP2::request(req,c$uid)) {
+			when (local rsp = ActiveHTTP2::request(req)) {
 				print "--- rsp ---";
 				print rsp;
+
+				print fmt("i: %s",rsp$stdout[0]);
+				local stdoutinfo = split(rsp$stdout[0],/\|/);
+				local filename = stdoutinfo[1];
+				local locip = stdoutinfo[2];
+				local locport = stdoutinfo[3];
+				local remip = stdoutinfo[4];
+				local remport = stdoutinfo[5];
+				local endurl = stdoutinfo[6];
+				local statuscode = stdoutinfo[7];
+				local contenttype = stdoutinfo[8];
+
+				print fmt("Adding %s to shellshock_files",filename);
+				shellshock_files[filename] = rsp$stdout[0];
+				shellshock_connections[fmt("%s:%s %s:%s",locip,locport,remip,remport)] = rsp$stdout[0];
+
 				#when (local md5hash = md5_file(dlfilename)) {
 				#	print "--- md5hash ---";
 				#	print md5hash;
@@ -103,7 +119,6 @@ event http_header(c:connection,is_orig:bool,name:string,value:string) &priority=
 				print "--- m ---";
 				print c$shellshock;
 			}
-			print "after when";
 		}
 	}
 }
@@ -114,6 +129,9 @@ event file_hash(f: fa_file,kind: string,hash: string) {
 
 event file_new(f: fa_file) {
 	print "--- file_new() ---";
+	if (f$source in shellshock_files) {
+		print "Found shellshock file";
+	}
 	#print f;
 	#if (f?$conns) {
 	#	for (c in f$conns) {
