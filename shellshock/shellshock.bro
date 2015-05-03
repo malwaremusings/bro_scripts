@@ -1,6 +1,6 @@
 module Shellshock;
 
-@load active-http2
+@load active-http2.bro
 
 export {
 	redef enum Log::ID += { LOG };
@@ -73,14 +73,21 @@ event http_header(c:connection,is_orig:bool,name:string,value:string) &priority=
 			local req:ActiveHTTP2::Request;
 			req$url = url;
 			req$method = "GET";
-			#req$addl_curl_args = "-w \"%{filename_effective} %{local_ip} %{local_port} %{remote_ip} %{remote_port} %{url_effective} %{http_code} %{content_type}\"";
+
+			#
+			# request that curl give us some information on stdout 
+			# after the transfer is complete
+			#
+			req$addl_curl_args = "-w \"%{filename_effective}|%{local_ip}|%{local_port}|%{remote_ip}|%{remote_port}|%{url_effective}|%{http_code}|%{content_type}\"";
 
 			#local rsp:ActiveHTTP2::Response;
-			#local dlfilename = cat("shellshock_downloads/",c$uid);
+			local dlfilename = cat("shellshock_downloads/",c$uid);
+			req$bodyfile = dlfilename;
 			print "before when";
-			when (local rsp = ActiveHTTP2::request(req,c$uid)) {
+			when (local rsp = ActiveHTTP2::request(req)) {
 				print "--- rsp ---";
 				print rsp;
+
 				#when (local md5hash = md5_file(dlfilename)) {
 				#	print "--- md5hash ---";
 				#	print md5hash;
