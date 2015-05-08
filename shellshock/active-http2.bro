@@ -21,6 +21,10 @@ export {
 		bodyfile:      string                  &optional;
 		## All headers returned by the server.
 		headers:   table[string] of string &optional;
+		## stdout
+		stdout:    vector of string &optional;
+		## stderr
+		stderr:    vector of string &optional;
 	};
 
 	type Request: record {
@@ -74,6 +78,8 @@ function request2curl(r: Request, bodyfile: string, headersfile: string): string
 		cmd = fmt("%s %s", cmd, r$addl_curl_args);
 
 	cmd = fmt("%s \"%s\"", cmd, str_shell_escape(r$url));
+
+	print fmt("< request2curl(): %s",cmd);
 	return cmd;
 	}
 
@@ -99,6 +105,10 @@ function request(req: Request): ActiveHTTP2::Response
 	return when ( local result = Exec::run([$cmd=cmd, $stdin=stdin_data, $read_files=set(headersfile)]) )
 		{
 		print "--- ActiveHTTP2::request() when ---";
+
+		if (result?$stdout) resp$stdout = result$stdout;
+		if (result?$stderr) resp$stderr = result$stderr;
+
 		# If there is no response line then nothing else will work either.
 		if ( ! (result?$files && headersfile in result$files) )
 			{

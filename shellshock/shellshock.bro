@@ -78,7 +78,7 @@ event http_header(c:connection,is_orig:bool,name:string,value:string) &priority=
 			# request that curl give us some information on stdout 
 			# after the transfer is complete
 			#
-			req$addl_curl_args = fmt("-w \"%s|%{filename_effective}|%{local_ip}|%{local_port}|%{remote_ip}|%{remote_port}|%{url_effective}|%{http_code}|%{content_type}\"",c$uid);
+			req$addl_curl_args = "-w \"" + c$uid + "|%{filename_effective}|%{local_ip}|%{local_port}|%{remote_ip}|%{remote_port}|%{url_effective}|%{http_code}|%{content_type}\"";
 
 			#local rsp:ActiveHTTP2::Response;
 			local dlfilename = cat("shellshock_downloads/",c$uid);
@@ -93,23 +93,26 @@ event http_header(c:connection,is_orig:bool,name:string,value:string) &priority=
 				#	print md5hash;
 				#	add c$shellshock$download_md5s[md5hash];
 
-				#	c$shellshock$ts = network_time();
-				#	c$shellshock$uid = c$uid;
-				#	c$shellshock$id = c$id;
-				#	if (c$http?$method) {
-				#		c$shellshock$target_method = c$http$method;
-				#	}
-				#	if (c$http?$host) {
-				#		c$shellshock$target_host = c$http$host;
-				#	}
-				#	if (c$http?$uri) {
-				#		c$shellshock$target_uri = c$http$uri;
-				#	}
-				#	Log::write(Shellshock::LOG,c$shellshock);
+					c$shellshock$ts = network_time();
+					c$shellshock$uid = c$uid;
+					c$shellshock$id = c$id;
+					if (c$http?$method) {
+						c$shellshock$target_method = c$http$method;
+					}
+					if (c$http?$host) {
+						c$shellshock$target_host = c$http$host;
+					}
+					if (c$http?$uri) {
+						c$shellshock$target_uri = c$http$uri;
+					}
+					Log::write(Shellshock::LOG,c$shellshock);
 				#}
+				print "--- stdout ---";
+				if (rsp?$stdout) print rsp$stdout;
+				print "--- stderr ---";
+				if (rsp?$stderr) print rsp$stderr;
 				print "--- m ---";
-				#print c$shellshock;
-				print c;
+				print c$shellshock;
 			}
 			print "after when";
 		}
