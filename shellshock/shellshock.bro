@@ -78,7 +78,7 @@ event http_header(c:connection,is_orig:bool,name:string,value:string) &priority=
 			# request that curl give us some information on stdout 
 			# after the transfer is complete
 			#
-			req$addl_curl_args = "-w \"%{filename_effective}|%{local_ip}|%{local_port}|%{remote_ip}|%{remote_port}|%{url_effective}|%{http_code}|%{content_type}\"";
+			req$addl_curl_args = fmt("-w \"%s|%{filename_effective}|%{local_ip}|%{local_port}|%{remote_ip}|%{remote_port}|%{url_effective}|%{http_code}|%{content_type}\"",c$uid);
 
 			#local rsp:ActiveHTTP2::Response;
 			local dlfilename = cat("shellshock_downloads/",c$uid);
@@ -108,7 +108,8 @@ event http_header(c:connection,is_orig:bool,name:string,value:string) &priority=
 				#	Log::write(Shellshock::LOG,c$shellshock);
 				#}
 				print "--- m ---";
-				print c$shellshock;
+				#print c$shellshock;
+				print c;
 			}
 			print "after when";
 		}
@@ -134,6 +135,7 @@ event file_new(f: fa_file) {
 }
 
 #event file_over_new_connection(f:fa_file,c:connection,is_orig:bool) {
+#	print "--- file_over_new_connection() ---";
 #	for (fc in f$conns) {
 #		print fc,f$conns[fc]$uid;
 #	}
