@@ -86,6 +86,7 @@ event Exec2::line(description: Input::EventDescription, tpe: Input::Event, s: st
 
 event Exec2::file_line(description: Input::EventDescription, tpe: Input::Event, s: string)
 	{
+	print fmt("> Exec2::file_line(%s): %s",description$name,s);
 	local parts = split1(description$name, /_/);
 	local name = parts[1];
 	local track_file = parts[2];
@@ -98,29 +99,39 @@ event Exec2::file_line(description: Input::EventDescription, tpe: Input::Event, 
 		result$files[track_file] = vector(s);
 	else
 		result$files[track_file][|result$files[track_file]|] = s;
+	print fmt("< Exec2::file_line(%s): %s",description$name,s);
 	}
 
 event Input::end_of_data(name: string, source:string)
 	{
+	print fmt("> Exec2::end_of_data(%s,%s)",name,source);
 	local parts = split1(name, /_/);
 	name = parts[1];
 
-	if ( name !in pending_commands || |parts| < 2 )
+	print fmt("    name in pending_commands: %d",name in pending_commands);
+	print fmt("    |parts|: %d",|parts|);
+	if ( name !in pending_commands || |parts| < 2 ) {
 		return;
+	}
 
 	local track_file = parts[2];
 
 	Input::remove(name);
 
-	if ( name !in pending_files )
+	if ( name !in pending_files ) {
+		print fmt("    removing pending_commands[%s]",name);
 		delete pending_commands[name];
+		}
 	else
 		{
+		print fmt("    removing pending_files[%s][%s]",name,track_file);
 		delete pending_files[name][track_file];
 		if ( |pending_files[name]| == 0 )
+			print fmt("        removing pending_commands[%s]",name);
 			delete pending_commands[name];
 		system(fmt("rm \"%s\"", str_shell_escape(track_file)));
 		}
+	print fmt("< Exec2::end_of_data(%s,%s)",name,source);
 	}
 
 event InputRaw::process_finished(name: string, source:string, exit_code:count, signal_exit:bool)
@@ -136,6 +147,7 @@ event InputRaw::process_finished(name: string, source:string, exit_code:count, s
 	local reading_done = F;
 	if ( name in pending_files && |pending_files[name]| > 0 ) {
 		for ( read_file in pending_files[name] ) {
+			print fmt("Exec2::process_finished(%s) creating event (%s) to read file %s",name,fmt("%s_%s",name,read_file),read_file);
 			Input::add_event([$source=fmt("%s", read_file),
 			                  $name=fmt("%s_%s", name, read_file),
 			                  $reader=Input::READER_RAW,
@@ -158,8 +170,15 @@ event InputRaw::process_finished(name: string, source:string, exit_code:count, s
 		analysis_done = T;
 	}
 
+	print fmt("Exec2::process_finished() reading_done = %d	analysis_done = %d",reading_done,analysis_done);
+	if (!reading_done) {
+		for (f in pending_files[name]) {
+			print fmt("  f: %s",f);
+		}
+	}
 	if (reading_done && analysis_done) {
 		# No extra files to read, nor files to analyse, command is done.
+		print fmt("Exec2::process_finished() deleting %s from pending_commands",name);
 		delete pending_commands[name];
 	}
 	print fmt("< process_finished(%s,%s,%d,%d)",name,source,exit_code,signal_exit);
@@ -167,6 +186,7 @@ event InputRaw::process_finished(name: string, source:string, exit_code:count, s
 
 function run(cmd: Command): Result
 	{
+	print fmt("> Exec2::run(%s)",cmd$uid);
 	add pending_commands[cmd$uid];
 	results[cmd$uid] = [];
 
@@ -193,6 +213,7 @@ function run(cmd: Command): Result
 		["stdin"]       = cmd$stdin,
 		["read_stderr"] = "1",
 	};
+	print fmt("    Creating event: %s",cmd$uid);
 	Input::add_event([$name=cmd$uid,
 	                  $source=fmt("%s |", cmd$cmd),
 	                  $reader=Input::READER_RAW,
@@ -202,6 +223,7 @@ function run(cmd: Command): Result
 	                  $want_record=F,
 	                  $config=config_strings]);
 
+	print "waiting in Exec2::run()";
 	return when ( cmd$uid !in pending_commands )
 		{
 		print "when cmd$uid !in pending_commands";

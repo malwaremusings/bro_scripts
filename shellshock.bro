@@ -73,6 +73,10 @@ event http_header(c:connection,is_orig:bool,name:string,value:string) &priority=
 			local req:ActiveHTTP2::Request;
 			req$url = url;
 			req$method = "GET";
+
+			#
+			# request curl give us some information on stdout after the xfer
+			#
 			req$addl_curl_args = "-w \"%{filename_effective}|%{local_ip}|%{local_port}|%{remote_ip}|%{remote_port}|%{url_effective}|%{http_code}|%{content_type}\"";
 
 			#local rsp:ActiveHTTP2::Response;

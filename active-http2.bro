@@ -82,8 +82,12 @@ function request2curl(r: Request, bodyfile: string, headersfile: string): string
 function request(req: Request): ActiveHTTP2::Response
 	{
 	local tmpfile     = "/tmp/bro-activehttp-" + unique_id("");
-	local bodyfile    = fmt("%s_body", tmpfile);
-	local headersfile = fmt("%s_headers", tmpfile);
+
+	# Note that using '_' in the file name will cause problems as 
+	# the code in exec.bro using _ to separate the request name from the 
+	# file name and splits on '_'
+	local bodyfile    = fmt("%s-body", tmpfile);
+	local headersfile = fmt("%s-headers", tmpfile);
 
 	local cmd = request2curl(req, bodyfile, headersfile);
 	local stdin_data = req?$client_data ? req$client_data : "";
@@ -94,6 +98,7 @@ function request(req: Request): ActiveHTTP2::Response
 	resp$body = "";
 	resp$headers = table();
 	#return when ( local result = Exec2::run([$cmd=cmd, $stdin=stdin_data, $read_files=set(headersfile), $analyse_files=set(bodyfile)]) )
+	print fmt("ActiveHTTP2::request(%s) calling Exec2::run(%s)",req$url,cmd);
 	return when ( local result = Exec2::run([$cmd=cmd, $stdin=stdin_data, $read_files=set(headersfile,bodyfile)]) )
 		{
 		print "--- ActiveHTTP2::request() when ---";
